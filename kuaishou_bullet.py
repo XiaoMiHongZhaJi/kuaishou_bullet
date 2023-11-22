@@ -1,11 +1,24 @@
+import sys
+
 import requests
 import json
 import time
+import logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+# 创建一个输出到控制台的handler
+console_handler = logging.StreamHandler(sys.stdout)
+# 创建一个格式化器
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+# 将格式化器添加到handler
+console_handler.setFormatter(formatter)
+# 将handler添加到logger
+logger.addHandler(console_handler)
 
 # 陈工
 liveUrl = "https://live.kuaishou.com/u/3x2gpmyhvtdh9s6"
 # KPL王者荣耀职业联赛
-liveUrl = "https://live.kuaishou.com/u/KPL704668133"
+# liveUrl = "https://live.kuaishou.com/u/KPL704668133"
 
 # 刷新间隔
 TIME = 3000
@@ -22,8 +35,8 @@ class KuaiLiveBarrage:
         try:
             data = json.loads(json.loads(data))
         except Exception as e:
-            print(e)
-            return []
+            logger.error(e)
+            return None
 
         liveStreamFeeds = data['liveStreamFeeds']
         barrages = []
@@ -52,7 +65,7 @@ if __name__ == '__main__':
     end_index = response_text.find('"', start_index + 20)
 
     while start_index == -1 or end_index == -1:
-        print('获取不到 liveStreamId，可能是暂未开播，1分钟后再试...')
+        logger.info('获取不到 liveStreamId，可能是暂未开播，1分钟后再试...')
         time.sleep(60)
         response = requests.get(liveUrl, headers=headers)
         response_text = response.text
@@ -60,15 +73,19 @@ if __name__ == '__main__':
         end_index = response_text.find('"', start_index + 20)
 
     liveStreamId = response_text[start_index + 20:end_index]
-    print('获取到 liveStreamId：' + liveStreamId + '，开始抓取弹幕')
+    logger.info('获取到 liveStreamId：' + liveStreamId + '，开始抓取弹幕')
 
     liveStream = KuaiLiveBarrage(liveStreamId)
 
     while True:
         barrages = liveStream.get()
-        # print(barrages)
+        # logger.info(barrages)
+        if barrages is None:
+            logger.warning(liveStreamId + ' 获取出错，可能是直播已结束')
+            break
+
         for barrage in barrages:
-            # print(barrage)
+            # logger.info(barrage)
             userId = barrage.get('userId')
             userName = barrage.get('userName')
             userImg = barrage.get('userImg')
@@ -76,5 +93,5 @@ if __name__ == '__main__':
             type = barrage.get('type')
             timestamp = barrage.get('timestamp') / 1000
             time_text = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
-            print(time_text + ' ' + userName + '：' + content)
+            logger.info(time_text + ' ' + userName + '：' + content)
         time.sleep(TIME / 1000)
